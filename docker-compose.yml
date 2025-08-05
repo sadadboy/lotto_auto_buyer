@@ -1,0 +1,83 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  lotto-buyer:
+    build: .
+    container_name: lotto-auto-buyer
+    environment:
+      - DOCKER_ENV=true
+      - TZ=Asia/Seoul
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./screenshots:/app/screenshots
+      - ./data:/app/data
+    ports:
+      - "5000:5000"  # GUI 대시보드
+    restart: unless-stopped
+    networks:
+      - lotto-network
+    depends_on:
+      - selenium-hub
+      - chrome
+    
+  # GUI 대시보드 서비스
+  lotto-dashboard:
+    build: .
+    container_name: lotto-dashboard
+    command: python dashboard.py
+    environment:
+      - FLASK_ENV=production
+      - TZ=Asia/Seoul
+    volumes:
+      - ./config:/app/config
+      - ./logs:/app/logs
+      - ./screenshots:/app/screenshots
+      - ./data:/app/data
+    ports:
+      - "5001:5000"
+    restart: unless-stopped
+    networks:
+      - lotto-network
+  
+  # Selenium Grid Hub
+  selenium-hub:
+    image: selenium/hub:latest
+    container_name: selenium-hub
+    ports:
+      - "4444:4444"
+    networks:
+      - lotto-network
+    environment:
+      - GRID_MAX_SESSION=5
+      - GRID_BROWSER_TIMEOUT=300
+      - GRID_TIMEOUT=300
+  
+  # Chrome Node
+  chrome:
+    image: selenium/node-chrome:latest
+    container_name: chrome-node
+    depends_on:
+      - selenium-hub
+    environment:
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+      - NODE_MAX_INSTANCES=5
+      - NODE_MAX_SESSION=5
+    volumes:
+      - /dev/shm:/dev/shm
+    networks:
+      - lotto-network
+    deploy:
+      replicas: 2
+
+networks:
+  lotto-network:
+    driver: bridge
+
+volumes:
+  lotto-data:
+  lotto-logs:
+  lotto-screenshots:
